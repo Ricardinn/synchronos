@@ -47,7 +47,7 @@ function Server(opt) {
   }
 
   if (this.serverOptions.extraHeaders) {
-    this.app.use((req, res, next) => {
+    this.app.use((_, res, next) => {
       res.set(this.serverOptions.extraHeaders);
       next();
     });

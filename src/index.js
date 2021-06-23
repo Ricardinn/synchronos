@@ -1,9 +1,12 @@
 // entry point
+// load env
+require("dotenv").config();
 
 const path = require("path");
 
 // initialize server instance
 const Server = new (require("./core/Server"))({
+  port: process.env.PORT || 5555,
   extraHeaders: {
     "Server-Agent": "movify",
   },
