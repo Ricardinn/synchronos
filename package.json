@@ -1,0 +1,19 @@
+{
+  "name": "movify2",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Juan Carlos Wu <jczas@sina.com> (https://juancwu.com/)",
+  "license": "MIT",
+  "dependencies": {
+    "ejs": "^3.1.6",
+    "express": "^4.17.1",
+    "socket.io": "^4.1.2",
+    "uuid": "^8.3.2",
+    "webtorrent": "^1.0.1"
+  }
+}
