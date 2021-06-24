@@ -2,8 +2,9 @@
 // handles the uploads to push zone
 
 const ftp = require("ftp");
+const { createWriteStream } = require("fs");
+const { join } = require("path");
 const { EventEmitter } = require("events");
-const util = require("./../utils");
 
 const FTP_STATES = {
   IDLE: "IDLE",
@@ -28,11 +29,13 @@ const FTP_CLIENT_EVENTS = {
 };
 
 /**
- *
- * @param {ftp.Options} opt
+ * @param {object} opt
+ * @param {ftp.Options} opt.ftpOptions
+ * @param {string} opt.downloadDir
  */
 function FTP(opt) {
-  this.__ftpOptions = opt;
+  this.__clientOptions = opt.ftpOptions;
+  this.__downloadDir = opt.downloadDir;
 
   this.client = new ftp();
   this.connected = false;
@@ -40,7 +43,7 @@ function FTP(opt) {
 
   this.state = FTP_STATES.IDLE;
 
-  this.init();
+  this.__init();
 }
 
 FTP.prototype = Object.create(EventEmitter.prototype);
@@ -53,10 +56,10 @@ FTP.prototype.constructor = FTP;
 FTP.prototype.connect = function (opt) {
   this.setState(FTP_STATES.CONNECTING);
 
-  this.client.connect(opt ?? this.__ftpOptions);
+  this.client.connect(opt ?? this.__clientOptions);
 };
 
-FTP.prototype.init = function () {
+FTP.prototype.__init = function () {
   const self = this;
 
   if (!(this.client instanceof ftp)) {
@@ -110,6 +113,10 @@ FTP.prototype.setState = function (state) {
   this.state = state;
 };
 
+/**
+ *
+ * @returns {boolean}
+ */
 FTP.prototype.isReady = function () {
   return this.state === FTP_STATES.READY;
 };
@@ -134,12 +141,23 @@ FTP.prototype.upload = function (input, destPath) {
 /**
  *
  * @param {string} remotePath
- * @returns {Promise<import('fs').ReadStream>}
+ * @param {string} saveName
+ * @returns {Promise<string>}
  */
-FTP.prototype.download = function (remotePath) {
-  const get = util.promisify(this.client.get, this.client);
+FTP.prototype.download = function (remotePath, saveName) {
+  const self = this;
+  return new Promise((resolve, reject) => {
+    self.client.get(remotePath, (err, stream) => {
+      if (err) return reject(err);
 
-  return get.call(this.client, remotePath, false);
+      const savePath = join(self.__downloadDir, saveName);
+      const writeStream = createWriteStream(savePath);
+
+      stream.once("close", () => resolve(savePath));
+
+      stream.pipe(writeStream);
+    });
+  });
 };
 
 /**
@@ -147,9 +165,14 @@ FTP.prototype.download = function (remotePath) {
  * @returns {Promise<void>}
  */
 FTP.prototype.abort = function () {
-  const abort = util.promisify(this.client.abort, this.client);
+  const self = this;
+  return new Promise((resolve, reject) => {
+    self.client.abort((err) => {
+      if (err) return reject(err);
 
-  return abort.call(this.client);
+      resolve();
+    });
+  });
 };
 
 /**
@@ -157,9 +180,14 @@ FTP.prototype.abort = function () {
  * @returns {Promise<string>}
  */
 FTP.prototype.status = function () {
-  const status = util.promisify(this.client.status, this.client);
+  const self = this;
+  return new Promise((resolve, reject) => {
+    self.client.status((err, serverStatus) => {
+      if (err) return reject(err);
 
-  return status.call(this.client);
+      resolve(serverStatus);
+    });
+  });
 };
 
 FTP.prototype.end = function () {
@@ -173,6 +201,10 @@ FTP.prototype.destroy = function () {
 FTP.prototype.__cleanUp = function () {
   if (this.client instanceof ftp) {
     this.destroy();
+    this.client.logout((err) => {
+      console.log("Error trying to logout from FTP server");
+      console.log(err);
+    });
   }
 
   this.client = null;
