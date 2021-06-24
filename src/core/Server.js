@@ -39,11 +39,11 @@ function Server(opt) {
   this.__socketNamespaces = new Map();
 
   if (this.serverOptions.enableSocket) {
-    this.socket = new io.Server();
-    this.socket.attach(this.server, this.serverOptions.socketOptions);
-    this.__socketNamespaces.set("root", this.socket.of("/"));
+    this.io = new io.Server();
+    this.io.attach(this.server, this.serverOptions.socketOptions);
+    this.__socketNamespaces.set("root", this.io.of("/"));
   } else {
-    this.socket = null;
+    this.io = null;
   }
 
   if (this.serverOptions.extraHeaders) {
@@ -162,11 +162,11 @@ Server.prototype.localGet = function (key) {
  * @returns {boolean} - successfully created returns true, otherwise false
  */
 Server.prototype.setNamespace = function (path, name) {
-  if (!this.socket) return false; // do not proceed if no socket is initialized
+  if (!this.io) return false; // do not proceed if no socket is initialized
 
   if (!name) name = path;
 
-  this.__socketNamespaces.set(name, this.socket.of(path));
+  this.__socketNamespaces.set(name, this.io.of(path));
 
   return true;
 };
@@ -177,7 +177,7 @@ Server.prototype.setNamespace = function (path, name) {
  * @returns {(io.Server|undefined)}
  */
 Server.prototype.getNamespace = function (name) {
-  if (!this.socket) return false;
+  if (!this.io) return false;
 
   return this.__socketNamespaces.get(name);
 };
@@ -196,7 +196,7 @@ Server.prototype.getNamespace = function (name) {
  * @param {socketConfigureFunction} fn
  */
 Server.prototype.configureSocket = function (fn) {
-  fn(this.socket, this.__socketNamespaces);
+  fn(this.io, this.__socketNamespaces);
 };
 
 /**
@@ -205,30 +205,39 @@ Server.prototype.configureSocket = function (fn) {
  */
 
 /**
- * Sets a listener for a socket event.
+ * Sets a listener to root socket.
  * @param {string} eventName
  * @param {socketListener} listener
  */
 Server.prototype.socketOn = function (eventName, listener) {
-  this.socket.on(eventName, listener);
+  this.io.on(eventName, listener);
 };
 
 /**
- * Sets a listener for a socket event that only listens one time.
+ * Sets a listener to root socket that only listens one time.
  * @param {string} eventName
  * @param {socketListener} listener
  */
 Server.prototype.socketOnce = function (eventName, listener) {
-  this.socket.once(eventName, listener);
+  this.io.once(eventName, listener);
 };
 
 /**
- *
+ * Emit event using root socket
  * @param {string} eventName
  * @param  {...any} args
  */
-Server.prototype.emit = function (eventName, ...args) {
-  this.socket.emit(eventName, ...args);
+Server.prototype.sokcetEmit = function (eventName, ...args) {
+  this.io.emit(eventName, ...args);
+};
+
+/**
+ * Broadcast to all local sockets
+ * @param {string} eventName
+ * @param  {...any} args
+ */
+Server.prototype.socketBroadcast = function (eventName, ...args) {
+  this.io.local.emit(eventName, ...args);
 };
 
 module.exports = Server;

@@ -215,7 +215,7 @@ FTP.prototype.__cleanUp = function () {
 };
 
 module.exports = {
-  default: FTP,
+  FTP,
   FTP_EVENTS,
   FTP_STATES,
   FTP_CLIENT_EVENTS,
