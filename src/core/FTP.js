@@ -118,7 +118,7 @@ FTP.prototype.setState = function (state) {
  * @returns {boolean}
  */
 FTP.prototype.isReady = function () {
-  return this.state === FTP_STATES.READY;
+  return this.state === FTP_STATES.READY && this.connected;
 };
 
 /**

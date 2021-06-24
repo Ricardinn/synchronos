@@ -28,6 +28,7 @@ FTP.on(FTP_EVENTS.FTP_READY, () => {
   console.log("FTP READY");
 });
 
+// Uncomment to connect FTP client to CDN
 // FTP.connect();
 
 Server.configure((app) => {
@@ -40,10 +41,6 @@ Server.configure((app) => {
 
   app.use(require("express").static(path.join(__dirname, "public")));
   app.use(require("express").urlencoded({ extended: true }));
-
-  app.get("/", (req, res) => {
-    res.render("index");
-  });
 });
 
 Server.listen();

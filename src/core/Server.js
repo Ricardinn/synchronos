@@ -2,7 +2,7 @@
 const express = require("express");
 const { createServer } = require("http");
 const { EventEmitter } = require("events");
-const { Server: ioServer } = require("socket.io");
+const io = require("socket.io");
 
 /**
  * Server instance
@@ -39,7 +39,7 @@ function Server(opt) {
   this.__socketNamespaces = new Map();
 
   if (this.serverOptions.enableSocket) {
-    this.socket = new ioServer();
+    this.socket = new io.Server();
     this.socket.attach(this.server, this.serverOptions.socketOptions);
     this.__socketNamespaces.set("root", this.socket.of("/"));
   } else {
@@ -47,32 +47,58 @@ function Server(opt) {
   }
 
   if (this.serverOptions.extraHeaders) {
-    this.app.use((_, res, next) => {
-      res.set(this.serverOptions.extraHeaders);
-      next();
-    });
+    this.use(
+      ((_, res, next) => {
+        res.set(this.serverOptions.extraHeaders);
+        next();
+      }).bind(this)
+    );
   }
 }
 
+// inherit EventEmitter
 Server.prototype = Object.create(EventEmitter.prototype);
 Server.prototype.constructor = Server;
 
+/**
+ * @callback listenCallback
+ * @param {number} port
+ */
+
+/**
+ * Start listening on specified port.
+ * @param {listenCallback} [cb]
+ */
 Server.prototype.listen = function (cb) {
   // start listenning on set port
-  cb =
-    cb ??
-    (() => console.log(`Listening on port: ${this.serverOptions.port}`)).bind(
-      this
-    );
-  this.server.listen(this.serverOptions.port, cb);
+  cb = cb ?? ((port) => console.log(`Listening on port: ${port}`));
+  const self = this;
+  this.server.listen(this.serverOptions.port, () => {
+    cb(self.serverOptions.port);
+  });
 };
 
+/**
+ * @callback serverConfigureFunction
+ * @param {express.Express} app
+ */
+
+/**
+ * Configures the Server.
+ * In the callback function, register all middlewares,
+ * routes, and among other things for the Server to run correctly.
+ * @param {serverConfigureFunction} fn
+ */
 Server.prototype.configure = function (fn) {
   // use the provided function to configure the express app
   // an instance of the express app is referenced as a param
   fn(this.app);
 };
 
+/**
+ * Use middleware.
+ * @param  {...express.RequestHandler} handlers
+ */
 Server.prototype.use = function (...handlers) {
   this.app.use(...handlers);
 };
@@ -87,12 +113,27 @@ Server.prototype.set = function (key, value) {
 };
 
 /**
- * Get value stored in Express Application
+ * Get value stored in Express Application or set 'GET' method route
  * @param {string} key
- * @returns
+ * @param {...express.RequestHandler} handlers
  */
-Server.prototype.get = function (key) {
-  return this.app.get(key);
+Server.prototype.get = function (key, ...handlers) {
+  if (handlers.length) {
+    // set get method route
+    this.app.get(key, ...handlers);
+  } else {
+    // getting a value from the express application
+    this.app.get(key);
+  }
+};
+
+/**
+ * Set 'POST' method route
+ * @param {string} route
+ * @param  {...express.RequestHandler} handlers
+ */
+Server.prototype.post = function (route, ...handlers) {
+  return this.app.post(route, ...handlers);
 };
 
 /**
@@ -108,17 +149,17 @@ Server.prototype.localSet = function (key, value) {
 /**
  * Get a value stored in the Server instance
  * @param {string} key
- * @returns
+ * @returns {*}
  */
 Server.prototype.localGet = function (key) {
   return this.__localStorage.get(key);
 };
 
 /**
- *
- * @param {string} path
- * @param {string} name
- * @returns {boolean}
+ * Creates a new namespace for the Socket
+ * @param {string} path - the path for the namespace
+ * @param {string} name - the name use to store the namespace in a Map
+ * @returns {boolean} - successfully created returns true, otherwise false
  */
 Server.prototype.setNamespace = function (path, name) {
   if (!this.socket) return false; // do not proceed if no socket is initialized
@@ -132,8 +173,8 @@ Server.prototype.setNamespace = function (path, name) {
 
 /**
  *
- * @param {string} name
- * @returns
+ * @param {string} name - the name use to store the namespace
+ * @returns {(io.Server|undefined)}
  */
 Server.prototype.getNamespace = function (name) {
   if (!this.socket) return false;
@@ -142,11 +183,52 @@ Server.prototype.getNamespace = function (name) {
 };
 
 /**
- *
- * @param {Function} fn
+ * @callback socketConfigureFunction
+ * @param {io.Server} socket
+ * @param {Map<string, io.Server>} namespaces
+ */
+
+/**
+ * Configures the socket instance.
+ * The callback receives two parameters,
+ * the socket and the Map of namespaces.
+ * Configure all the events and namespaces logic in the callback.
+ * @param {socketConfigureFunction} fn
  */
 Server.prototype.configureSocket = function (fn) {
-  fn(this.socket, this.__socketNamespaces, this);
+  fn(this.socket, this.__socketNamespaces);
+};
+
+/**
+ * @callback socketListener
+ * @param {...any} args
+ */
+
+/**
+ * Sets a listener for a socket event.
+ * @param {string} eventName
+ * @param {socketListener} listener
+ */
+Server.prototype.socketOn = function (eventName, listener) {
+  this.socket.on(eventName, listener);
+};
+
+/**
+ * Sets a listener for a socket event that only listens one time.
+ * @param {string} eventName
+ * @param {socketListener} listener
+ */
+Server.prototype.socketOnce = function (eventName, listener) {
+  this.socket.once(eventName, listener);
+};
+
+/**
+ *
+ * @param {string} eventName
+ * @param  {...any} args
+ */
+Server.prototype.emit = function (eventName, ...args) {
+  this.socket.emit(eventName, ...args);
 };
 
 module.exports = Server;
