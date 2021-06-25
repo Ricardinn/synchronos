@@ -1,46 +1,49 @@
 // entry point
-// load env
-require("dotenv").config();
+import { config } from "dotenv";
+import path from "path";
+import Server from "./core/Server";
+import FTP, { FTP_EVENTS } from "./core/FTP";
+import { static as eStatic, urlencoded } from "express";
 
-const path = require("path");
+// load env
+config();
 
 // initialize server instance
-const Server = new (require("./core/Server"))({
-  port: process.env.PORT || 5555,
+const server = new Server({
+  port: Number(process.env.PORT) || 5555,
   extraHeaders: {
     "Server-Agent": "movify",
   },
 });
 
 // initialize FTP instance
-const { FTP_EVENTS } = require("./core/FTP");
-const FTP = new (require("./core/FTP").FTP)({
+const ftp = new FTP({
   ftpOptions: {
     host: process.env.FTP_HOST || "localhost",
-    port: process.env.FTP_PORT || 21,
+    port: Number(process.env.FTP_PORT) || 21,
     user: process.env.FTP_USER || "anonymous",
     password: process.env.FTP_PASSWORD || "anonymous@",
   },
   downloadDir: path.join(__dirname, "downloads"),
 });
 
-FTP.on(FTP_EVENTS.FTP_READY, () => {
+ftp.on(FTP_EVENTS.FTP_READY, () => {
   console.log("FTP READY");
 });
 
 // Uncomment to connect FTP client to CDN
 // FTP.connect();
 
-Server.configure((app) => {
+server.configure((app) => {
   // set views
   app.set("views", path.join(__dirname, "views"));
   app.set("view engine", "ejs");
 
   // Store FTP instance to make uploads to CDN
-  app.set("FTP", FTP);
+  // app.set("FTP", FTP);
 
-  app.use("/public", require("express").static(path.join(__dirname, "public")));
-  app.use(require("express").urlencoded({ extended: true }));
+  app.use("/public", eStatic(path.join(__dirname, "public")));
+  app.use(urlencoded({ extended: true }));
 
   // ! debug only
   app.get("/", (_, res) => {
@@ -48,8 +51,8 @@ Server.configure((app) => {
   });
 });
 
-Server.configureSocket((io, namespaces) => {
-  Server.setNamespace("/movie-space");
+server.configureSocket((io, namespaces) => {
+  server.setNamespace("/movie-space");
 
   io.on("connection", (_socket) => {
     console.log('user connected to "/"');
@@ -81,4 +84,4 @@ Server.configureSocket((io, namespaces) => {
   });
 });
 
-Server.listen();
+server.listen();
