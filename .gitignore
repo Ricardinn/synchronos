@@ -3,4 +3,6 @@ src/movies
 src/tests
 src/downloads
 
+.env
+
 dist
